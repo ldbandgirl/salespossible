@@ -1,0 +1,95 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SalesPossible — OpenClaw/Hermes Hybrid Agent Configuration
+# ─────────────────────────────────────────────────────────────────────────────
+
+agent:
+  name: Alex
+  data_dir: ~/.salespossible
+  log_level: INFO
+
+# ── LLM ───────────────────────────────────────────────────────────────────────
+llm:
+  # Primary model (Claude Sonnet for reasoning + tool use)
+  primary_model: claude-sonnet-4-6
+  # Fast model for self-improvement, summarisation, routing
+  fast_model: claude-haiku-4-5-20251001
+  # Provider: anthropic | openrouter
+  provider: anthropic
+  max_tokens: 8096
+  # Enable prompt caching to reduce costs on long system prompts
+  prompt_caching: true
+
+# ── Memory (Hermes-style) ─────────────────────────────────────────────────────
+memory:
+  # SQLite database for session history + FTS5 search
+  db_file: memory.db
+  # Maximum lines kept in active MEMORY.md (~100 lines, like OpenClaw)
+  memory_md_max_lines: 100
+  # Cross-session recall: how many past sessions to surface via FTS
+  recall_top_k: 5
+  # Context files loaded into every system prompt
+  context_files:
+    - soul/SOUL.md
+    - soul/STYLE.md
+    - soul/MEMORY.md
+
+# ── Skills (OpenClaw/Hermes hybrid) ──────────────────────────────────────────
+skills:
+  directory: skills/
+  # Hermes-style: auto-create skills after complex sessions
+  auto_create: true
+  # Trigger skill self-improvement after N successful uses
+  improvement_threshold: 5
+  # Directory for agent-generated skills
+  generated_dir: skills/_generated/
+
+# ── Tools ─────────────────────────────────────────────────────────────────────
+tools:
+  enabled:
+    - web_search
+    - http_request
+    - code_exec
+    - crm
+    - email
+  # Require approval for these tool categories
+  require_approval:
+    - email_send
+    - crm_write
+
+# ── Gateways (OpenClaw-style multi-platform) ──────────────────────────────────
+gateway:
+  # Active gateways: cli | telegram | discord
+  active:
+    - cli
+  cli:
+    prompt: "You → "
+    multiline: false
+  telegram:
+    # dm_policy: pairing | open
+    dm_policy: pairing
+  discord:
+    # Command prefix for Discord
+    prefix: "!"
+
+# ── CRM ───────────────────────────────────────────────────────────────────────
+crm:
+  # provider: hubspot | salesforce | mock
+  provider: mock
+
+# ── Scheduling (Hermes cron) ──────────────────────────────────────────────────
+schedule:
+  enabled: true
+  jobs: []
+  # Example job:
+  # - name: daily_digest
+  #   cron: "0 9 * * *"
+  #   skill: daily_report
+  #   gateway: telegram
+
+# ── Self-Improvement (Hermes loop) ────────────────────────────────────────────
+self_improve:
+  enabled: true
+  # Analyse sessions and nudge memory updates after N turns
+  memory_nudge_interval: 10
+  # Use fast model for improvement analysis
+  model: claude-haiku-4-5-20251001
