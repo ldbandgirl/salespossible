@@ -22,3 +22,7 @@ When importing into your target app or pipeline:
 - Add skeletal rig (hips/spine/arms/legs) for idle and walking animations.
 - Bake textures for face details and clothing seams.
 - Export to `.glb` once rigged/animated for single-file deployment.
+
+
+## Realistic look-alike note
+A single-image procedural OBJ cannot reliably produce exact human likeness. See `REALISTIC_WORKFLOW.md` and `generation_prompts.txt` for the realistic pipeline and prompts to generate a true photo-matched GLB avatar.
