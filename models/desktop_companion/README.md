@@ -7,7 +7,7 @@ This folder contains a lightweight **OBJ + MTL** 3D character model inspired by 
 - `companion_mobile.mtl` — material definitions/colors
 
 ## Design goals
-- Smoother mid-poly mesh for more human-like curves while staying runtime-friendly.
+- Humanized mid-poly mesh with smoother anatomy and facial features while staying runtime-friendly.
 - Human-like silhouette with blazer/shirt/pants palette matching the source image.
 - Added a subtle hover-ring accent (`accent` material) to emphasize mobility.
 
