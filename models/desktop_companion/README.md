@@ -7,13 +7,13 @@ This folder contains a lightweight **OBJ + MTL** 3D character model inspired by 
 - `companion_mobile.mtl` — material definitions/colors
 
 ## Design goals
-- Low-poly and lightweight for responsive desktop rendering.
+- Smoother mid-poly mesh for more human-like curves while staying runtime-friendly.
 - Human-like silhouette with blazer/shirt/pants palette matching the source image.
 - Added a subtle hover-ring accent (`accent` material) to emphasize mobility.
 
 ## Recommended import settings
 When importing into your target app or pipeline:
-- Scale: `1.0` (model is authored in meters; approx. 1.75m tall)
+- Scale: `1.0` (model is authored in meters; approx. 1.78m tall)
 - Up axis: `Y`
 - Forward axis: `-Z` (or adjust to your engine default)
 - Import materials from `.mtl`
@@ -26,3 +26,8 @@ When importing into your target app or pipeline:
 
 ## Realistic look-alike note
 A single-image procedural OBJ cannot reliably produce exact human likeness. See `REALISTIC_WORKFLOW.md` and `generation_prompts.txt` for the realistic pipeline and prompts to generate a true photo-matched GLB avatar.
+
+
+## Mesh update
+- Replaced the original blocky procedural mesh with a smoother mid-poly body built from lathed surfaces and a torus hover ring.
+- Current mesh density is suitable as a better visual base before full photoreal scan/retopo work.
