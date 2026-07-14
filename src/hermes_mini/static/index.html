@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Hermes on Reachy Mini</title>
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #1c1c1c; --muted: #6b6b6b;
+    --accent: #b45309; --ok: #15803d; --err: #b91c1c; --line: #e5e2dc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513; --card: #201f1c; --ink: #eceae6; --muted: #9c988f;
+      --accent: #f59e0b; --ok: #4ade80; --err: #f87171; --line: #34322d;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--ink);
+    max-width: 720px; margin: 0 auto; padding: 1.25rem;
+  }
+  h1 { font-size: 1.35rem; margin: .25rem 0 1rem; }
+  h1 small { color: var(--muted); font-weight: 400; font-size: .95rem; }
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem;
+  }
+  .row { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+  .badge {
+    display: inline-block; padding: .2rem .7rem; border-radius: 999px;
+    font-size: .85rem; font-weight: 600; background: var(--line);
+  }
+  .badge.listening { background: #dcfce7; color: #14532d; }
+  .badge.thinking  { background: #fef3c7; color: #713f12; }
+  .badge.speaking  { background: #dbeafe; color: #1e3a8a; }
+  .badge.paused, .badge.error { background: #fee2e2; color: #7f1d1d; }
+  #miclevel { flex: 1; min-width: 120px; height: 8px; border-radius: 4px;
+    background: var(--line); overflow: hidden; }
+  #miclevel > div { height: 100%; width: 0%; background: var(--ok); transition: width .12s; }
+  dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin-top: .75rem; }
+  dt { color: var(--muted); font-size: .85rem; }
+  dd { font-size: .95rem; overflow-wrap: anywhere; }
+  .error { color: var(--err); }
+  button {
+    font: inherit; padding: .45rem 1rem; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  fieldset { border: none; padding: 0; margin: 0 0 1rem; }
+  legend { font-weight: 600; margin-bottom: .5rem; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: .6rem 0 .15rem; }
+  input, select {
+    font: inherit; width: 100%; padding: .45rem .6rem; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--bg); color: var(--ink);
+  }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1rem; }
+  @media (max-width: 540px) { .grid2 { grid-template-columns: 1fr; } }
+  .note { font-size: .8rem; color: var(--muted); margin-top: .5rem; }
+  #savemsg { margin-left: .75rem; font-size: .9rem; }
+</style>
+</head>
+<body>
+  <h1>☤ Hermes on Reachy Mini <small>· settings &amp; status</small></h1>
+
+  <div class="card">
+    <div class="row">
+      <span id="phase" class="badge">…</span>
+      <div id="miclevel"><div></div></div>
+      <button id="pausebtn">Pause</button>
+    </div>
+    <dl>
+      <dt>Last heard</dt><dd id="heard">—</dd>
+      <dt>Last reply</dt><dd id="reply">—</dd>
+      <dt>Turns</dt><dd id="turns">0</dd>
+      <dt>Error</dt><dd id="error" class="error">—</dd>
+    </dl>
+  </div>
+
+  <form class="card" id="cfgform">
+    <fieldset>
+      <legend>Hermes Agent</legend>
+      <label>Base URL (your VPS, e.g. https://hermes.example.com)</label>
+      <input name="hermes_base_url" placeholder="https://…" />
+      <div class="grid2">
+        <div><label>API key</label><input name="hermes_api_key" type="password" autocomplete="off" /></div>
+        <div><label>Mode</label>
+          <select name="hermes_mode">
+            <option value="auto">auto (responses → chat)</option>
+            <option value="responses">responses (server memory)</option>
+            <option value="chat">chat (local history)</option>
+          </select>
+        </div>
+        <div><label>Model name</label><input name="hermes_model" /></div>
+        <div><label>Conversation name</label><input name="hermes_conversation" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Speech to text</legend>
+      <div class="grid2">
+        <div><label>Provider</label>
+          <select name="stt_provider"><option>openai</option><option>groq</option></select>
+        </div>
+        <div><label>Language (blank = auto)</label><input name="language" placeholder="en" /></div>
+        <div><label>OpenAI API key</label><input name="openai_api_key" type="password" autocomplete="off" /></div>
+        <div><label>Groq API key</label><input name="groq_api_key" type="password" autocomplete="off" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Text to speech</legend>
+      <div class="grid2">
+        <div><label>Provider</label>
+          <select name="tts_provider"><option>openai</option><option>elevenlabs</option></select>
+        </div>
+        <div><label>OpenAI voice</label><input name="tts_voice" placeholder="alloy" /></div>
+        <div><label>ElevenLabs API key</label><input name="elevenlabs_api_key" type="password" autocomplete="off" /></div>
+        <div><label>ElevenLabs voice ID</label><input name="elevenlabs_voice_id" /></div>
+      </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Listening</legend>
+      <div class="grid2">
+        <div><label>Sensitivity multiplier (lower = more sensitive)</label>
+          <input name="vad_threshold_mult" type="number" step="0.5" min="1.5" max="12" /></div>
+        <div><label>End-of-utterance silence (seconds)</label>
+          <input name="vad_end_silence_s" type="number" step="0.1" min="0.4" max="3" /></div>
+      </div>
+    </fieldset>
+
+    <div class="row">
+      <button class="primary" type="submit">Save settings</button>
+      <span id="savemsg"></span>
+    </div>
+    <p class="note">Settings apply immediately and are stored on the robot
+      (settings.json in the app folder). Password fields show ******** when a
+      key is already set — leave them untouched to keep the existing key.</p>
+  </form>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const form = $("cfgform");
+
+  async function refreshStatus() {
+    try {
+      const s = await (await fetch("/api/status")).json();
+      const phase = $("phase");
+      phase.textContent = s.phase;
+      phase.className = "badge " + s.phase.split(" ")[0];
+      $("miclevel").firstElementChild.style.width = (s.mic_level * 100) + "%";
+      $("heard").textContent = s.last_heard || "—";
+      $("reply").textContent = s.last_reply || "—";
+      $("turns").textContent = s.turns;
+      $("error").textContent = s.last_error || "—";
+      $("pausebtn").textContent = s.paused ? "Resume" : "Pause";
+    } catch (e) { $("phase").textContent = "app offline"; }
+  }
+
+  async function loadConfig() {
+    const cfg = await (await fetch("/api/config")).json();
+    for (const el of form.elements) {
+      if (el.name && cfg[el.name] !== undefined) el.value = cfg[el.name];
+    }
+  }
+
+  form.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const body = {};
+    for (const el of form.elements) if (el.name) body[el.name] = el.value;
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    $("savemsg").textContent = res.ok ? "Saved ✓" : "Save failed";
+    setTimeout(() => ($("savemsg").textContent = ""), 3000);
+  });
+
+  $("pausebtn").addEventListener("click", async () => {
+    await fetch("/api/pause", { method: "POST" });
+    refreshStatus();
+  });
+
+  loadConfig();
+  refreshStatus();
+  setInterval(refreshStatus, 1000);
+</script>
+</body>
+</html>
