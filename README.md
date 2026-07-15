@@ -1,6 +1,6 @@
 ---
 title: Hermes on Reachy Mini
-emoji: 🪽
+emoji: 🤖
 colorFrom: yellow
 colorTo: gray
 sdk: static
