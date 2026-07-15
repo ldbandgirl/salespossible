@@ -1,0 +1,14 @@
+# Prompt templates for 3D avatar generators (Meshy/Tripo/CSM-like tools)
+
+## Base prompt (photoreal human)
+Create a realistic full-body 3D human male avatar matching the reference person: dark tousled hair, light stubble, light blue dress shirt, navy blazer, navy trousers, brown leather belt and brown leather dress shoes. Preserve realistic body proportions, face identity cues, and natural fabric folds. Generate game-ready PBR materials with clean topology suitable for rigging.
+
+## Negative prompt
+cartoon, chibi, low poly, exaggerated proportions, anime, plastic skin, distorted face, extra limbs, blurry textures, noisy geometry
+
+## Output requirements
+- neutral A-pose
+- 25k to 60k triangles
+- 2K textures: baseColor, normal, roughness, metallic, AO
+- separate material slots: skin, hair, shirt, blazer, pants, shoes
+- export GLB with embedded textures
