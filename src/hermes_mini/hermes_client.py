@@ -87,6 +87,10 @@ class HermesClient:
     def send(self, user_text: str, image_url: str | None = None) -> str:
         """Send one user utterance (optionally with a camera image), return the reply."""
         with self._lock:
+            # Images go over chat-completions — the documented, proven vision
+            # path. /v1/responses does not reliably handle inline images.
+            if image_url is not None:
+                return self._send_chat(user_text, image_url)
             mode = (self.cfg.hermes_mode or "auto").lower()
             use_responses = mode == "responses" or (
                 mode == "auto" and not self._responses_unsupported
@@ -110,6 +114,10 @@ class HermesClient:
         404/405. The caller can fall back to send() if this yields nothing.
         """
         with self._lock:
+            # Images go over chat-completions — the proven vision path.
+            if image_url is not None:
+                yield from self._stream_chat(user_text, image_url)
+                return
             mode = (self.cfg.hermes_mode or "auto").lower()
             use_responses = mode == "responses" or (
                 mode == "auto" and not self._responses_unsupported

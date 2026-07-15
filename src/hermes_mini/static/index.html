@@ -105,11 +105,11 @@
     </form>
     <p class="note">Voice turns (🎤) and typed turns (⌨️) share one conversation.
       📷 sends a live camera frame so Hermes can see it.</p>
-    <details style="margin-top:.4rem">
-      <summary class="note" style="cursor:pointer">Show camera preview</summary>
+    <details id="camdetails" style="margin-top:.4rem">
+      <summary class="note" style="cursor:pointer">Show camera preview (live)</summary>
       <div class="row" style="margin-top:.5rem">
-        <button type="button" id="camrefresh">Refresh view</button>
-        <span id="camnote" class="note"></span>
+        <button type="button" id="camrefresh">Refresh now</button>
+        <span id="camnote" class="note">updates ~1/sec while open</span>
       </div>
       <img id="campreview" alt="camera preview" style="display:none; max-width:100%;
         margin-top:.5rem; border-radius:8px; border:1px solid var(--line)" />
@@ -304,13 +304,31 @@
   chatform.addEventListener("submit", (ev) => { ev.preventDefault(); sendChat(false); });
   $("chatcam").addEventListener("click", () => sendChat(true));
 
-  $("camrefresh").addEventListener("click", () => {
+  function loadSnapshot() {
     const img = $("campreview");
-    $("camnote").textContent = "loading…";
-    const url = "/api/snapshot?t=" + Date.now();
-    img.onload = () => { img.style.display = "block"; $("camnote").textContent = ""; };
-    img.onerror = () => { img.style.display = "none"; $("camnote").textContent = "camera unavailable"; };
-    img.src = url;
+    const next = new Image();
+    next.onload = () => {
+      img.src = next.src;
+      img.style.display = "block";
+      $("camnote").textContent = "live · updates ~1/sec";
+    };
+    next.onerror = () => {
+      img.style.display = "none";
+      $("camnote").textContent = "camera unavailable";
+    };
+    next.src = "/api/snapshot?t=" + Date.now();
+  }
+  $("camrefresh").addEventListener("click", loadSnapshot);
+  const camdetails = $("camdetails");
+  let camTimer = null;
+  camdetails.addEventListener("toggle", () => {
+    if (camdetails.open) {
+      loadSnapshot();
+      camTimer = setInterval(loadSnapshot, 1200);
+    } else if (camTimer) {
+      clearInterval(camTimer);
+      camTimer = null;
+    }
   });
 
   async function loadConfig() {

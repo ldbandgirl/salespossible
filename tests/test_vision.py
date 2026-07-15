@@ -71,6 +71,24 @@ def test_responses_input_shapes():
     assert content[1] == {"type": "input_image", "image_url": DATA_URL}
 
 
+def test_image_turn_uses_chat_even_in_auto_mode():
+    """In auto mode, an image turn must go to chat-completions, not responses."""
+    paths = []
+
+    def handler(request):
+        paths.append(request.url.path)
+        return httpx.Response(
+            200, json={"choices": [{"message": {"content": "a cup"}}]}
+        )
+
+    cfg = Config()
+    cfg.hermes_base_url = "https://hermes.test"
+    cfg.hermes_mode = "auto"  # would normally hit /v1/responses
+    client = HermesClient(cfg, transport=httpx.MockTransport(handler))
+    assert client.send("what is this", DATA_URL) == "a cup"
+    assert paths == ["/v1/chat/completions"]  # never touched /v1/responses
+
+
 def test_send_chat_includes_image_in_request():
     captured = {}
 
