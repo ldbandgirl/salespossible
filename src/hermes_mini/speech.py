@@ -4,7 +4,8 @@ Hermes' HTTP API is text-only (its voice mode lives in the Hermes CLI and
 Discord integrations), so the robot handles audio conversion itself:
 
   STT: OpenAI (`whisper-1` by default) or Groq (`whisper-large-v3-turbo`)
-  TTS: OpenAI (`gpt-4o-mini-tts`, WAV out) or ElevenLabs (raw PCM 16 kHz out)
+  TTS: OpenAI (`gpt-4o-mini-tts`, WAV out), ElevenLabs (raw PCM 16 kHz out),
+       or MiniMax (`t2a_v2`, hex-encoded PCM 16 kHz out)
 """
 
 from __future__ import annotations
@@ -23,6 +24,7 @@ logger = logging.getLogger("hermes_mini.speech")
 OPENAI_BASE = "https://api.openai.com/v1"
 GROQ_BASE = "https://api.groq.com/openai/v1"
 ELEVENLABS_BASE = "https://api.elevenlabs.io/v1"
+MINIMAX_BASE = "https://api.minimax.io/v1"
 
 DEFAULT_STT_MODELS = {
     "openai": "whisper-1",
@@ -96,6 +98,8 @@ class TtsClient:
         provider = (self.cfg.tts_provider or "openai").lower()
         if provider == "elevenlabs":
             return self._elevenlabs(text)
+        if provider == "minimax":
+            return self._minimax(text)
         if provider == "openai":
             return self._openai(text)
         raise SpeechError(f"Unknown TTS provider: {provider}")
@@ -119,6 +123,54 @@ class TtsClient:
         if resp.status_code >= 400:
             raise SpeechError(f"TTS error {resp.status_code}: {resp.text[:300]}")
         return decode_wav(resp.content)
+
+    def _minimax(self, text: str) -> tuple[npt.NDArray[np.float32], int]:
+        """MiniMax t2a_v2: JSON in, hex-encoded PCM (s16le mono) out."""
+        if not self.cfg.minimax_api_key:
+            raise SpeechError("MINIMAX_API_KEY is required for MiniMax TTS.")
+        url = f"{MINIMAX_BASE}/t2a_v2"
+        if self.cfg.minimax_group_id:
+            url += f"?GroupId={self.cfg.minimax_group_id}"
+        payload = {
+            "model": self.cfg.minimax_tts_model or "speech-02-turbo",
+            "text": text,
+            "stream": False,
+            "output_format": "hex",
+            "voice_setting": {
+                "voice_id": self.cfg.minimax_voice_id or "Wise_Woman",
+                "speed": 1.0,
+                "vol": 1.0,
+                "pitch": 0,
+            },
+            "audio_setting": {"sample_rate": 16000, "format": "pcm", "channel": 1},
+        }
+        try:
+            resp = self._client.post(
+                url,
+                headers={"Authorization": f"Bearer {self.cfg.minimax_api_key}"},
+                json=payload,
+            )
+        except httpx.HTTPError as e:
+            raise SpeechError(f"TTS request failed: {e}") from e
+        if resp.status_code >= 400:
+            raise SpeechError(f"TTS error {resp.status_code}: {resp.text[:300]}")
+
+        data = resp.json()
+        base_resp = data.get("base_resp") or {}
+        if base_resp.get("status_code", 0) != 0:
+            raise SpeechError(
+                f"MiniMax TTS error {base_resp.get('status_code')}: "
+                f"{base_resp.get('status_msg', 'unknown')}"
+            )
+        audio_hex = (data.get("data") or {}).get("audio")
+        if not audio_hex:
+            raise SpeechError("MiniMax TTS returned no audio.")
+        try:
+            pcm = bytes.fromhex(audio_hex)
+        except ValueError as e:
+            raise SpeechError(f"MiniMax TTS returned invalid hex audio: {e}") from e
+        rate = int((data.get("extra_info") or {}).get("audio_sample_rate", 16000))
+        return decode_pcm16(pcm), rate
 
     def _elevenlabs(self, text: str) -> tuple[npt.NDArray[np.float32], int]:
         if not self.cfg.elevenlabs_api_key:

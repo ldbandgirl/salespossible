@@ -136,9 +136,10 @@ sensitivity, voices, and provider switches. Changes apply immediately.
 | `HERMES_CONVERSATION` | `reachy-mini` | Conversation name Hermes chains turns under (responses mode) |
 | `HERMES_MODEL` | `hermes-agent` | Model name the API server advertises |
 | `HERMES_SYSTEM_PROMPT` | built-in | Embodiment prompt (keep replies short & speakable) |
-| `STT_PROVIDER` | `openai` | `openai` (whisper-1) or `groq` (whisper-large-v3-turbo) |
-| `TTS_PROVIDER` | `openai` | `openai` (gpt-4o-mini-tts) or `elevenlabs` |
+| `STT_PROVIDER` | `openai` | `openai` (whisper-1) or `groq` (whisper-large-v3-turbo, free tier) |
+| `TTS_PROVIDER` | `openai` | `openai` (gpt-4o-mini-tts), `elevenlabs`, or `minimax` (t2a_v2) |
 | `TTS_VOICE` | `alloy` | OpenAI voice name |
+| `MINIMAX_API_KEY` | — | MiniMax platform API key for TTS (`MINIMAX_GROUP_ID`, `MINIMAX_VOICE_ID` optional) |
 | `STT_LANGUAGE` | auto | Force a language code like `en` |
 
 VAD tunables (`vad_threshold_mult`, `vad_end_silence_s`, …) are adjustable

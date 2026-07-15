@@ -111,6 +111,19 @@ def main() -> None:
             "https://api.elevenlabs.io/v1/user",
             {"xi-api-key": cfg.elevenlabs_api_key},
         )
+    elif provider == "minimax":
+        if not cfg.minimax_api_key:
+            print(f"{FAIL} MINIMAX_API_KEY is not set")
+            failures += 1
+        else:
+            def tts_probe() -> str:
+                from hermes_mini.speech import TtsClient
+
+                samples, rate = TtsClient(cfg).synthesize("Test.")
+                return f"synthesized {samples.size / rate:.1f}s of audio"
+
+            if not _check("MiniMax key (tiny t2a_v2 request)", tts_probe):
+                failures += 1
     else:
         print(f"{FAIL} Unknown TTS_PROVIDER: {provider}")
         failures += 1

@@ -113,11 +113,15 @@
       <legend>Text to speech</legend>
       <div class="grid2">
         <div><label>Provider</label>
-          <select name="tts_provider"><option>openai</option><option>elevenlabs</option></select>
+          <select name="tts_provider"><option>openai</option><option>elevenlabs</option><option>minimax</option></select>
         </div>
         <div><label>OpenAI voice</label><input name="tts_voice" placeholder="alloy" /></div>
         <div><label>ElevenLabs API key</label><input name="elevenlabs_api_key" type="password" autocomplete="off" /></div>
         <div><label>ElevenLabs voice ID</label><input name="elevenlabs_voice_id" /></div>
+        <div><label>MiniMax API key</label><input name="minimax_api_key" type="password" autocomplete="off" /></div>
+        <div><label>MiniMax group ID (if your account has one)</label><input name="minimax_group_id" /></div>
+        <div><label>MiniMax voice ID</label><input name="minimax_voice_id" placeholder="Wise_Woman" /></div>
+        <div><label>MiniMax model</label><input name="minimax_tts_model" placeholder="speech-02-turbo" /></div>
       </div>
     </fieldset>
 

@@ -47,6 +47,10 @@ ENV_MAP = {
     "elevenlabs_api_key": "ELEVENLABS_API_KEY",
     "elevenlabs_voice_id": "ELEVENLABS_VOICE_ID",
     "elevenlabs_model": "ELEVENLABS_MODEL",
+    "minimax_api_key": "MINIMAX_API_KEY",
+    "minimax_group_id": "MINIMAX_GROUP_ID",
+    "minimax_tts_model": "MINIMAX_TTS_MODEL",
+    "minimax_voice_id": "MINIMAX_VOICE_ID",
     "greeting": "HERMES_MINI_GREETING",
 }
 
@@ -56,6 +60,7 @@ SECRET_FIELDS = {
     "openai_api_key",
     "groq_api_key",
     "elevenlabs_api_key",
+    "minimax_api_key",
 }
 
 
@@ -81,12 +86,16 @@ class Config:
     language: str = ""  # e.g. "en", empty = auto
 
     # Text to speech
-    tts_provider: str = "openai"  # openai | elevenlabs
+    tts_provider: str = "openai"  # openai | elevenlabs | minimax
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"
     elevenlabs_api_key: str = ""
     elevenlabs_voice_id: str = ""
     elevenlabs_model: str = "eleven_flash_v2_5"
+    minimax_api_key: str = ""
+    minimax_group_id: str = ""
+    minimax_tts_model: str = "speech-02-turbo"
+    minimax_voice_id: str = "Wise_Woman"
 
     # Listening / voice activity detection
     vad_threshold_mult: float = 4.0  # speech threshold = noise floor * mult
