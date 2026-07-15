@@ -78,15 +78,16 @@ class Config:
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
     history_max_turns: int = 12  # chat mode only
 
-    # Speech to text
-    stt_provider: str = "openai"  # openai | groq
+    # Speech to text (MiniMax has no reliable public ASR, so hearing
+    # defaults to Groq's free tier; MiniMax STT is experimental)
+    stt_provider: str = "groq"  # groq | minimax | openai
     stt_model: str = ""  # empty = provider default
     openai_api_key: str = ""
     groq_api_key: str = ""
     language: str = ""  # e.g. "en", empty = auto
 
-    # Text to speech
-    tts_provider: str = "openai"  # openai | elevenlabs | minimax
+    # Text to speech (MiniMax Token Plan key covers this)
+    tts_provider: str = "minimax"  # minimax | elevenlabs | openai
     tts_model: str = "gpt-4o-mini-tts"
     tts_voice: str = "alloy"
     elevenlabs_api_key: str = ""

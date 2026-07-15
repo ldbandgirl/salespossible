@@ -75,3 +75,40 @@ def test_minimax_api_error_surfaces_message():
 def test_minimax_missing_key():
     with pytest.raises(SpeechError, match="MINIMAX_API_KEY"):
         make_client(lambda r: httpx.Response(500), minimax_api_key="").synthesize("hi")
+
+
+def test_stt_minimax_uses_minimax_key_and_endpoint():
+    from hermes_mini.speech import SttClient
+
+    seen = {}
+
+    def handler(request):
+        seen["url"] = str(request.url)
+        seen["auth"] = request.headers["authorization"]
+        return httpx.Response(200, json={"text": "hello robot"})
+
+    cfg = Config()
+    cfg.stt_provider = "minimax"
+    cfg.minimax_api_key = "mm-key"
+    stt = SttClient(cfg, transport=httpx.MockTransport(handler))
+    text = stt.transcribe(np.zeros(1600, dtype=np.float32), 16000)
+    assert text == "hello robot"
+    assert seen["url"] == "https://api.minimax.io/v1/audio/transcriptions"
+    assert seen["auth"] == "Bearer mm-key"
+
+
+def test_stt_default_is_groq():
+    assert Config().stt_provider == "groq"
+
+
+def test_tts_default_is_minimax():
+    assert Config().tts_provider == "minimax"
+
+
+def test_stt_missing_groq_key_message():
+    from hermes_mini.speech import SttClient
+
+    cfg = Config()  # default provider groq, no key
+    stt = SttClient(cfg, transport=httpx.MockTransport(lambda r: httpx.Response(500)))
+    with pytest.raises(SpeechError, match="Groq"):
+        stt.transcribe(np.zeros(1600, dtype=np.float32), 16000)

@@ -88,6 +88,15 @@ def main() -> None:
             "https://api.groq.com/openai/v1/models",
             {"Authorization": f"Bearer {cfg.groq_api_key}"},
         )
+    elif provider == "minimax":
+        if not cfg.minimax_api_key:
+            print(f"{FAIL} MINIMAX_API_KEY is not set")
+            failures += 1
+        else:
+            print(
+                f"{SKIP} MiniMax STT is experimental (no documented ASR endpoint); "
+                "test it live on the robot, keep Groq as fallback"
+            )
     else:
         print(f"{FAIL} Unknown STT_PROVIDER: {provider}")
         failures += 1

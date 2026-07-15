@@ -27,6 +27,9 @@ class HermesMini(ReachyMiniApp):
 
     def run(self, reachy_mini: ReachyMini, stop_event: threading.Event) -> None:
         logging.basicConfig(level=logging.INFO)
+        from hermes_mini import logbuffer
+
+        logbuffer.install()  # capture logs for the settings page
         instance_path = self._get_instance_path().parent
 
         cfg = load_config(instance_path)
@@ -46,6 +49,12 @@ def register_api_routes(app, cfg: Config, state: AppState, instance_path: Path) 
     @app.get("/api/status")
     async def get_status() -> dict:
         return state.to_dict()
+
+    @app.get("/api/logs")
+    async def get_logs() -> dict:
+        from hermes_mini.logbuffer import get_lines
+
+        return {"lines": get_lines()}
 
     @app.get("/api/config")
     async def get_config() -> dict:

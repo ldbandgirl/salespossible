@@ -39,6 +39,11 @@
   #miclevel { flex: 1; min-width: 120px; height: 8px; border-radius: 4px;
     background: var(--line); overflow: hidden; }
   #miclevel > div { height: 100%; width: 0%; background: var(--ok); transition: width .12s; }
+  #logs { max-height: 260px; overflow: auto; margin-top: .6rem; padding: .6rem .7rem;
+    background: #11100e; color: #d7d3c8; border-radius: 8px; font-size: .74rem;
+    line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
+    font-family: ui-monospace, "SF Mono", Menlo, monospace; }
+  @media (prefers-color-scheme: light) { #logs { background: #1c1b18; color: #e4e0d6; } }
   dl { display: grid; grid-template-columns: max-content 1fr; gap: .3rem .9rem; margin-top: .75rem; }
   dt { color: var(--muted); font-size: .85rem; }
   dd { font-size: .95rem; overflow-wrap: anywhere; }
@@ -78,6 +83,15 @@
     </dl>
   </div>
 
+  <div class="card">
+    <div class="row">
+      <strong>Live log</strong>
+      <button id="logtoggle" type="button">Pause</button>
+      <span id="logcount" class="note" style="margin-left:auto"></span>
+    </div>
+    <pre id="logs">starting…</pre>
+  </div>
+
   <form class="card" id="cfgform">
     <fieldset>
       <legend>Hermes Agent</legend>
@@ -98,30 +112,33 @@
     </fieldset>
 
     <fieldset>
-      <legend>Speech to text</legend>
+      <legend>Speech to text (hearing)</legend>
       <div class="grid2">
         <div><label>Provider</label>
-          <select name="stt_provider"><option>openai</option><option>groq</option></select>
+          <select name="stt_provider"><option>groq</option><option>minimax</option><option>openai</option></select>
         </div>
         <div><label>Language (blank = auto)</label><input name="language" placeholder="en" /></div>
-        <div><label>OpenAI API key</label><input name="openai_api_key" type="password" autocomplete="off" /></div>
-        <div><label>Groq API key</label><input name="groq_api_key" type="password" autocomplete="off" /></div>
+        <div><label>Groq API key (free — console.groq.com)</label><input name="groq_api_key" type="password" autocomplete="off" /></div>
+        <div><label>OpenAI API key (only if provider = openai)</label><input name="openai_api_key" type="password" autocomplete="off" /></div>
       </div>
+      <p class="note">MiniMax has no reliable speech-to-text API, so hearing uses
+        Groq's free tier by default. Selecting <code>minimax</code> here is
+        experimental and reuses your MiniMax key below.</p>
     </fieldset>
 
     <fieldset>
-      <legend>Text to speech</legend>
+      <legend>Text to speech (voice)</legend>
       <div class="grid2">
         <div><label>Provider</label>
-          <select name="tts_provider"><option>openai</option><option>elevenlabs</option><option>minimax</option></select>
+          <select name="tts_provider"><option>minimax</option><option>elevenlabs</option><option>openai</option></select>
         </div>
-        <div><label>OpenAI voice</label><input name="tts_voice" placeholder="alloy" /></div>
+        <div><label>MiniMax API key (your Token Plan key)</label><input name="minimax_api_key" type="password" autocomplete="off" /></div>
+        <div><label>MiniMax voice ID</label><input name="minimax_voice_id" placeholder="Wise_Woman" /></div>
+        <div><label>MiniMax group ID (optional)</label><input name="minimax_group_id" /></div>
+        <div><label>MiniMax model</label><input name="minimax_tts_model" placeholder="speech-02-turbo" /></div>
         <div><label>ElevenLabs API key</label><input name="elevenlabs_api_key" type="password" autocomplete="off" /></div>
         <div><label>ElevenLabs voice ID</label><input name="elevenlabs_voice_id" /></div>
-        <div><label>MiniMax API key</label><input name="minimax_api_key" type="password" autocomplete="off" /></div>
-        <div><label>MiniMax group ID (if your account has one)</label><input name="minimax_group_id" /></div>
-        <div><label>MiniMax voice ID</label><input name="minimax_voice_id" placeholder="Wise_Woman" /></div>
-        <div><label>MiniMax model</label><input name="minimax_tts_model" placeholder="speech-02-turbo" /></div>
+        <div><label>OpenAI voice (only if provider = openai)</label><input name="tts_voice" placeholder="alloy" /></div>
       </div>
     </fieldset>
 
@@ -163,6 +180,24 @@
     } catch (e) { $("phase").textContent = "app offline"; }
   }
 
+  let logsPaused = false;
+  $("logtoggle").addEventListener("click", () => {
+    logsPaused = !logsPaused;
+    $("logtoggle").textContent = logsPaused ? "Resume" : "Pause";
+  });
+
+  async function refreshLogs() {
+    if (logsPaused) return;
+    try {
+      const data = await (await fetch("/api/logs")).json();
+      const el = $("logs");
+      const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
+      el.textContent = (data.lines || []).join("\n") || "(no log output yet)";
+      $("logcount").textContent = (data.lines || []).length + " lines";
+      if (atBottom) el.scrollTop = el.scrollHeight;
+    } catch (e) { /* app restarting */ }
+  }
+
   async function loadConfig() {
     const cfg = await (await fetch("/api/config")).json();
     for (const el of form.elements) {
@@ -190,7 +225,9 @@
 
   loadConfig();
   refreshStatus();
+  refreshLogs();
   setInterval(refreshStatus, 1000);
+  setInterval(refreshLogs, 1500);
 </script>
 </body>
 </html>

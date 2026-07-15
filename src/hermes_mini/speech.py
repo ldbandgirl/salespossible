@@ -3,9 +3,15 @@
 Hermes' HTTP API is text-only (its voice mode lives in the Hermes CLI and
 Discord integrations), so the robot handles audio conversion itself:
 
-  STT: OpenAI (`whisper-1` by default) or Groq (`whisper-large-v3-turbo`)
-  TTS: OpenAI (`gpt-4o-mini-tts`, WAV out), ElevenLabs (raw PCM 16 kHz out),
-       or MiniMax (`t2a_v2`, hex-encoded PCM 16 kHz out)
+  STT: Groq (`whisper-large-v3-turbo`, free tier — default), OpenAI
+       (`whisper-1`), or MiniMax (experimental, OpenAI-compatible
+       `/v1/audio/transcriptions`; MiniMax has no officially documented ASR
+       endpoint, so it may not work with every account)
+  TTS: MiniMax (`t2a_v2`, hex-encoded PCM 16 kHz — default), ElevenLabs
+       (raw PCM 16 kHz out), or OpenAI (`gpt-4o-mini-tts`, WAV out)
+
+MiniMax's Token Plan key covers text-to-speech but NOT a reliable
+speech-to-text API, which is why hearing defaults to Groq's free tier.
 """
 
 from __future__ import annotations
@@ -29,6 +35,14 @@ MINIMAX_BASE = "https://api.minimax.io/v1"
 DEFAULT_STT_MODELS = {
     "openai": "whisper-1",
     "groq": "whisper-large-v3-turbo",
+    "minimax": "whisper-large-v3",
+}
+
+# Provider -> (base URL, config attribute holding the API key)
+STT_PROVIDERS = {
+    "groq": (GROQ_BASE, "groq_api_key"),
+    "openai": (OPENAI_BASE, "openai_api_key"),
+    "minimax": (MINIMAX_BASE, "minimax_api_key"),
 }
 
 
@@ -49,17 +63,19 @@ class SttClient:
         self._client.close()
 
     def transcribe(self, samples: npt.NDArray[np.float32], rate: int) -> str:
-        provider = (self.cfg.stt_provider or "openai").lower()
-        if provider == "groq":
-            base, key = GROQ_BASE, self.cfg.groq_api_key
-        elif provider == "openai":
-            base, key = OPENAI_BASE, self.cfg.openai_api_key
-        else:
+        provider = (self.cfg.stt_provider or "groq").lower()
+        if provider not in STT_PROVIDERS:
             raise SpeechError(f"Unknown STT provider: {provider}")
+        base, key_attr = STT_PROVIDERS[provider]
+        key = getattr(self.cfg, key_attr)
         if not key:
+            hint = {
+                "groq": "Set a free Groq key at console.groq.com.",
+                "minimax": "Set your MiniMax API key.",
+                "openai": "Set your OpenAI key.",
+            }[provider]
             raise SpeechError(
-                f"No API key configured for STT provider '{provider}'. "
-                "Set OPENAI_API_KEY or GROQ_API_KEY."
+                f"No API key configured for STT provider '{provider}'. {hint}"
             )
 
         model = self.cfg.stt_model or DEFAULT_STT_MODELS[provider]
