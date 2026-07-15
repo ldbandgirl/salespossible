@@ -85,12 +85,20 @@ hermes-mini-check --say "hi"  # full round trip through Hermes
 
 ## 3. Install on the robot
 
-With the robot on and on your Wi-Fi, open its dashboard at
-`http://reachy-mini.local:8000` and install the app from this repo's URL, or
-use the direct install link:
+The robot's app marketplace installs from Hugging Face Spaces. This app is
+published as the Space **`aiclawbots/hermes_mini`** — in the dashboard at
+`http://reachy-mini.local:8000`, open the app store, search **hermes_mini**,
+and hit Install.
 
-```
-http://reachy-mini.local:8000/install?url=<this repo/space URL>
+To publish your own copy (e.g. after forking), use the official assistant
+from a clone whose folder name is the app name:
+
+```bash
+pip install reachy-mini
+git clone https://github.com/ldbandgirl/salespossible hermes_mini
+cd hermes_mini
+reachy-mini-app-assistant check .
+reachy-mini-app-assistant publish . "Update" --public
 ```
 
 Then open the app's settings page (the dashboard links to it once the app is

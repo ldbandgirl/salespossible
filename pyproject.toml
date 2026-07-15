@@ -24,7 +24,7 @@ dev = ["pytest"]
 hermes-mini-check = "hermes_mini.check:main"
 
 [project.entry-points."reachy_mini_apps"]
-hermes_mini = "hermes_mini.main:HermesMiniApp"
+hermes_mini = "hermes_mini.main:HermesMini"
 
 [tool.setuptools]
 package-dir = { "" = "src" }

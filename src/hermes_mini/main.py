@@ -15,8 +15,12 @@ from hermes_mini.state import AppState
 logger = logging.getLogger("hermes_mini")
 
 
-class HermesMiniApp(ReachyMiniApp):
-    """Voice bridge between the robot and a self-hosted Hermes Agent."""
+class HermesMini(ReachyMiniApp):
+    """Voice bridge between the robot and a self-hosted Hermes Agent.
+
+    Note: the class name must stay `HermesMini` — the app assistant's `check`
+    derives it from the package name (hermes_mini -> HermesMini).
+    """
 
     custom_app_url = "http://0.0.0.0:7860/"
     dont_start_webserver = False
@@ -69,7 +73,7 @@ def register_api_routes(app, cfg: Config, state: AppState, instance_path: Path) 
 
 def main() -> None:
     """Run standalone (outside the dashboard): `python -m hermes_mini.main`."""
-    app = HermesMiniApp()
+    app = HermesMini()
     try:
         app.wrapped_run()
     except KeyboardInterrupt:
