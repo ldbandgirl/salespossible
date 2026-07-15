@@ -143,13 +143,15 @@
     </fieldset>
 
     <fieldset>
-      <legend>Listening</legend>
+      <legend>Listening &amp; responsiveness</legend>
       <div class="grid2">
         <div><label>Sensitivity multiplier (lower = more sensitive)</label>
           <input name="vad_threshold_mult" type="number" step="0.5" min="1.5" max="12" /></div>
-        <div><label>End-of-utterance silence (seconds)</label>
+        <div><label>End-of-utterance silence, seconds (lower = snappier)</label>
           <input name="vad_end_silence_s" type="number" step="0.1" min="0.4" max="3" /></div>
       </div>
+      <label style="margin-top:.7rem"><input type="checkbox" name="streaming" style="width:auto; margin-right:.4rem" />
+        Stream reply — start speaking each sentence as Hermes generates it (faster)</label>
     </fieldset>
 
     <div class="row">
@@ -201,14 +203,19 @@
   async function loadConfig() {
     const cfg = await (await fetch("/api/config")).json();
     for (const el of form.elements) {
-      if (el.name && cfg[el.name] !== undefined) el.value = cfg[el.name];
+      if (!el.name || cfg[el.name] === undefined) continue;
+      if (el.type === "checkbox") el.checked = !!cfg[el.name];
+      else el.value = cfg[el.name];
     }
   }
 
   form.addEventListener("submit", async (ev) => {
     ev.preventDefault();
     const body = {};
-    for (const el of form.elements) if (el.name) body[el.name] = el.value;
+    for (const el of form.elements) {
+      if (!el.name) continue;
+      body[el.name] = el.type === "checkbox" ? el.checked : el.value;
+    }
     const res = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

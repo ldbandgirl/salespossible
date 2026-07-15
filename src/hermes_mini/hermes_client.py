@@ -19,6 +19,7 @@ All endpoints require `Authorization: Bearer <API_SERVER_KEY>`.
 
 from __future__ import annotations
 
+import json
 import logging
 from collections import deque
 
@@ -97,7 +98,96 @@ class HermesClient:
                 self._responses_unsupported = True
         return self._send_chat(user_text)
 
+    def stream(self, user_text: str):
+        """Yield reply text chunks as Hermes generates them.
+
+        Same mode logic as send(). Falls back from responses to chat mode on
+        404/405. The caller can fall back to send() if this yields nothing.
+        """
+        mode = (self.cfg.hermes_mode or "auto").lower()
+        use_responses = mode == "responses" or (
+            mode == "auto" and not self._responses_unsupported
+        )
+        if use_responses:
+            try:
+                yield from self._stream_responses(user_text)
+                return
+            except HermesUnsupportedEndpoint:
+                if mode == "responses":
+                    raise HermesError(
+                        "Hermes rejected /v1/responses. Set HERMES_MODE=chat or upgrade Hermes."
+                    )
+                logger.info("/v1/responses not available; falling back to chat mode.")
+                self._responses_unsupported = True
+        yield from self._stream_chat(user_text)
+
     # ------------------------------------------------------------ internals
+
+    def _stream_responses(self, user_text: str):
+        payload: dict = {
+            "model": self.cfg.hermes_model,
+            "input": user_text,
+            "store": True,
+            "stream": True,
+        }
+        if self.cfg.hermes_conversation:
+            payload["conversation"] = self.cfg.hermes_conversation
+        if self.cfg.system_prompt:
+            payload["instructions"] = self.cfg.system_prompt
+        yield from self._stream_request(
+            "/v1/responses", payload, _delta_from_responses, allow_unsupported=True
+        )
+
+    def _stream_chat(self, user_text: str):
+        messages = self._chat_messages(user_text)
+        payload = {"model": self.cfg.hermes_model, "messages": messages, "stream": True}
+        collected: list[str] = []
+        for delta in self._stream_request(
+            "/v1/chat/completions", payload, _delta_from_chat
+        ):
+            collected.append(delta)
+            yield delta
+        full = "".join(collected).strip()
+        if full:
+            self._history.append({"role": "user", "content": user_text})
+            self._history.append({"role": "assistant", "content": full})
+
+    def _stream_request(self, path, payload, extract, allow_unsupported=False):
+        url = self._base() + path
+        try:
+            with self._client.stream(
+                "POST", url, json=payload, headers=self._headers()
+            ) as resp:
+                if allow_unsupported and resp.status_code in (404, 405):
+                    raise HermesUnsupportedEndpoint(path)
+                if resp.status_code == 401:
+                    raise HermesError("Hermes rejected the API key (401). Check the API key.")
+                if resp.status_code >= 400:
+                    resp.read()
+                    raise HermesError(f"Hermes error {resp.status_code}: {resp.text[:300]}")
+                for line in resp.iter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        obj = json.loads(data)
+                    except ValueError:
+                        continue
+                    delta = extract(obj)
+                    if delta:
+                        yield delta
+        except httpx.HTTPError as e:
+            raise HermesError(f"Cannot reach Hermes at {url}: {e}") from e
+
+    def _chat_messages(self, user_text: str) -> list[dict]:
+        messages: list[dict] = []
+        if self.cfg.system_prompt:
+            messages.append({"role": "system", "content": self.cfg.system_prompt})
+        messages.extend(self._history)
+        messages.append({"role": "user", "content": user_text})
+        return messages
 
     def _send_responses(self, user_text: str) -> str:
         payload: dict = {
@@ -117,15 +207,9 @@ class HermesClient:
         return text
 
     def _send_chat(self, user_text: str) -> str:
-        messages: list[dict] = []
-        if self.cfg.system_prompt:
-            messages.append({"role": "system", "content": self.cfg.system_prompt})
-        messages.extend(self._history)
-        messages.append({"role": "user", "content": user_text})
-
         payload = {
             "model": self.cfg.hermes_model,
-            "messages": messages,
+            "messages": self._chat_messages(user_text),
             "stream": False,
         }
         resp = self._request("POST", "/v1/chat/completions", json=payload)
@@ -161,6 +245,32 @@ class HermesClient:
 
 class HermesUnsupportedEndpoint(HermesError):
     """The Hermes build doesn't serve this endpoint (404/405)."""
+
+
+def _delta_from_chat(obj: dict) -> str:
+    """Extract the incremental text from one chat-completions SSE chunk."""
+    try:
+        content = (obj["choices"][0].get("delta") or {}).get("content")
+    except (KeyError, IndexError, TypeError):
+        return ""
+    return content if isinstance(content, str) else ""
+
+
+def _delta_from_responses(obj: dict) -> str:
+    """Extract incremental text from one Responses-API SSE event.
+
+    Tolerant of variants: `{type: response.output_text.delta, delta: "..."}`,
+    a bare `{delta: "..."}`, or a chat-style chunk.
+    """
+    if not isinstance(obj, dict):
+        return ""
+    delta = obj.get("delta")
+    event_type = obj.get("type", "") or ""
+    if isinstance(delta, str) and (
+        "output_text" in event_type or event_type.endswith(".delta") or not event_type
+    ):
+        return delta
+    return _delta_from_chat(obj)
 
 
 def parse_chat_output(data: dict) -> str:

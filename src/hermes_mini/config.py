@@ -77,6 +77,8 @@ class Config:
     hermes_timeout_s: float = 180.0
     system_prompt: str = DEFAULT_SYSTEM_PROMPT
     history_max_turns: int = 12  # chat mode only
+    streaming: bool = True  # speak each sentence as Hermes generates it
+    tts_min_sentence_chars: int = 24  # don't synthesize tiny fragments alone
 
     # Speech to text (MiniMax has no reliable public ASR, so hearing
     # defaults to Groq's free tier; MiniMax STT is experimental)
@@ -102,7 +104,7 @@ class Config:
     vad_threshold_mult: float = 4.0  # speech threshold = noise floor * mult
     vad_min_rms: float = 0.010  # absolute floor for the speech threshold
     vad_min_speech_s: float = 0.30  # speech needed to open an utterance
-    vad_end_silence_s: float = 1.0  # silence that closes an utterance
+    vad_end_silence_s: float = 0.7  # silence that closes an utterance
     vad_pre_roll_s: float = 0.5  # audio kept from before speech started
     vad_max_utterance_s: float = 30.0
 

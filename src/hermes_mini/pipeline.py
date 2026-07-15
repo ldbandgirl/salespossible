@@ -15,7 +15,11 @@ from hermes_mini.hermes_client import HermesClient, HermesError
 from hermes_mini.listener import UtteranceListener
 from hermes_mini.speech import SpeechError, SttClient, TtsClient
 from hermes_mini.state import AppState
-from hermes_mini.text_utils import clamp_for_speech, strip_markdown
+from hermes_mini.text_utils import (
+    clamp_for_speech,
+    split_into_sentences,
+    strip_markdown,
+)
 
 logger = logging.getLogger("hermes_mini.pipeline")
 
@@ -112,24 +116,71 @@ class VoicePipeline:
             self.state.last_heard = heard
             logger.info("Heard: %s", heard)
 
+            if self.cfg.streaming:
+                reply = self._stream_reply_and_speak(heard)
+                if reply:  # streaming produced a spoken reply
+                    self._finish_turn(reply)
+                    return
+                logger.info("Streaming yielded nothing; using non-streaming reply.")
+
             reply = self.hermes.send(heard)
             self.state.hermes_mode_in_use = self.hermes.mode_in_use
-            self.state.last_reply = reply
-            self.state.turns += 1
             logger.info("Hermes: %s", reply[:200])
+            speakable = clamp_for_speech(strip_markdown(reply))
+            if speakable:
+                self.state.phase = "speaking"
+                self.animations.stop_thinking()
+                self._synth_and_play(speakable)
+            self._finish_turn(reply)
         except (HermesError, SpeechError) as e:
             self._handle_error(str(e))
-            return
         except Exception as e:
             self._handle_error(f"{type(e).__name__}: {e}")
-            return
         finally:
             self.animations.stop_thinking()
 
-        speakable = clamp_for_speech(strip_markdown(reply))
-        if speakable:
+    def _stream_reply_and_speak(self, heard: str) -> str:
+        """Stream Hermes' reply, speaking each sentence as it completes.
+
+        Returns the full reply text (empty string if nothing was produced, so
+        the caller can fall back to a non-streaming request).
+        """
+        buffer = ""
+        parts: list[str] = []
+        first = True
+        for chunk in self.hermes.stream(heard):
+            if self.stop_event.is_set():
+                break
+            buffer += chunk
+            parts.append(chunk)
+            sentences, buffer = split_into_sentences(
+                buffer, self.cfg.tts_min_sentence_chars
+            )
+            for sentence in sentences:
+                first = self._speak_sentence(sentence, first)
+        tail = clamp_for_speech(strip_markdown(buffer))
+        if tail:
+            self._speak_sentence(tail, first)
+        reply = "".join(parts).strip()
+        if reply:
+            self.state.hermes_mode_in_use = self.hermes.mode_in_use
+            logger.info("Hermes (streamed): %s", reply[:200])
+        return reply
+
+    def _speak_sentence(self, sentence: str, first: bool) -> bool:
+        """Synthesize and play one sentence. Returns the updated `first` flag."""
+        text = clamp_for_speech(strip_markdown(sentence))
+        if not text:
+            return first
+        if first:
+            self.animations.stop_thinking()
             self.state.phase = "speaking"
-            self._try_speak(speakable)
+        self._synth_and_play(text)
+        return False
+
+    def _finish_turn(self, reply: str) -> None:
+        self.state.last_reply = reply
+        self.state.turns += 1
         self.state.last_error = ""
 
     def _handle_error(self, message: str) -> None:
@@ -142,10 +193,15 @@ class VoicePipeline:
 
     # -------------------------------------------------------------- speaking
 
+    def _synth_and_play(self, text: str) -> None:
+        """Synthesize `text` and play it. Raises SpeechError on failure."""
+        samples, rate = self.tts.synthesize(text)
+        self._play(samples, rate)
+
     def _try_speak(self, text: str) -> None:
+        """Speak `text`, swallowing errors (used for greeting only)."""
         try:
-            samples, rate = self.tts.synthesize(text)
-            self._play(samples, rate)
+            self._synth_and_play(text)
         except SpeechError as e:
             self._handle_error(str(e))
         except Exception as e:

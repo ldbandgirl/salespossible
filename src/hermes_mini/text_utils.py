@@ -37,6 +37,28 @@ def strip_markdown(text: str) -> str:
     return out.strip()
 
 
+_SENTENCE_END = re.compile(r"[.!?…]+[\"')\]]?(?=\s)|\n+")
+
+
+def split_into_sentences(buffer: str, min_chars: int = 24) -> tuple[list[str], str]:
+    """Split streamed text into complete sentences plus a remainder.
+
+    A sentence is only emitted once it ends with terminal punctuation (or a
+    newline) followed by whitespace. Fragments shorter than `min_chars` are
+    merged into the next sentence so we don't synthesize "Hi." on its own.
+    Returns (complete_sentences, leftover_text_still_accumulating).
+    """
+    sentences: list[str] = []
+    start = 0
+    for m in _SENTENCE_END.finditer(buffer):
+        end = m.end()
+        candidate = buffer[start:end].strip()
+        if len(candidate) >= min_chars:
+            sentences.append(candidate)
+            start = end
+    return sentences, buffer[start:].lstrip()
+
+
 def clamp_for_speech(text: str, max_chars: int = 1200) -> str:
     """Cap very long replies so the robot doesn't monologue for minutes."""
     if len(text) <= max_chars:
