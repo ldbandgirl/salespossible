@@ -39,6 +39,17 @@
   #miclevel { flex: 1; min-width: 120px; height: 8px; border-radius: 4px;
     background: var(--line); overflow: hidden; }
   #miclevel > div { height: 100%; width: 0%; background: var(--ok); transition: width .12s; }
+  #chat { max-height: 340px; overflow-y: auto; margin-top: .6rem; display: flex;
+    flex-direction: column; gap: .4rem; }
+  .msg { max-width: 85%; padding: .45rem .7rem; border-radius: 12px; font-size: .92rem;
+    overflow-wrap: anywhere; }
+  .msg .who { display: block; font-size: .68rem; opacity: .6; margin-bottom: .1rem; }
+  .msg.user { align-self: flex-end; background: var(--accent); color: #fff;
+    border-bottom-right-radius: 3px; }
+  .msg.assistant { align-self: flex-start; background: var(--line);
+    border-bottom-left-radius: 3px; }
+  #chatinput { padding: .5rem .6rem; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); font: inherit; }
   #logs { max-height: 260px; overflow: auto; margin-top: .6rem; padding: .6rem .7rem;
     background: #11100e; color: #d7d3c8; border-radius: 8px; font-size: .74rem;
     line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere;
@@ -81,6 +92,17 @@
       <dt>Turns</dt><dd id="turns">0</dd>
       <dt>Error</dt><dd id="error" class="error">—</dd>
     </dl>
+  </div>
+
+  <div class="card">
+    <strong>Conversation</strong>
+    <div id="chat"><p class="note">No messages yet — talk to the robot or type below.</p></div>
+    <form id="chatform" class="row" style="margin-top:.6rem">
+      <input id="chatinput" placeholder="Type a message to Hermes…" autocomplete="off"
+             style="flex:1; min-width:0" />
+      <button class="primary" type="submit" id="chatsend">Send</button>
+    </form>
+    <p class="note">Voice turns (🎤) and typed turns (⌨️) share one conversation.</p>
   </div>
 
   <div class="card">
@@ -200,6 +222,57 @@
     } catch (e) { /* app restarting */ }
   }
 
+  let lastMsgId = 0;
+  function renderMessages(messages) {
+    const chat = $("chat");
+    if (!messages.length) return;
+    const topId = messages[messages.length - 1].id;
+    if (topId === lastMsgId) return;  // nothing new
+    lastMsgId = topId;
+    const atBottom = chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 40;
+    chat.innerHTML = "";
+    for (const m of messages) {
+      const div = document.createElement("div");
+      div.className = "msg " + (m.role === "user" ? "user" : "assistant");
+      const who = document.createElement("span");
+      who.className = "who";
+      who.textContent = (m.source === "voice" ? "🎤 " : "⌨️ ") +
+        (m.role === "user" ? "You" : "Hermes");
+      const body = document.createElement("span");
+      body.textContent = m.text;
+      div.append(who, body);
+      chat.append(div);
+    }
+    if (atBottom) chat.scrollTop = chat.scrollHeight;
+  }
+
+  async function refreshTranscript() {
+    try {
+      const data = await (await fetch("/api/transcript")).json();
+      renderMessages(data.messages || []);
+    } catch (e) { /* app restarting */ }
+  }
+
+  const chatform = $("chatform");
+  chatform.addEventListener("submit", async (ev) => {
+    ev.preventDefault();
+    const input = $("chatinput");
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    $("chatsend").disabled = true;
+    try {
+      await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+    } catch (e) { /* shown via transcript refresh */ }
+    $("chatsend").disabled = false;
+    input.focus();
+    refreshTranscript();
+  });
+
   async function loadConfig() {
     const cfg = await (await fetch("/api/config")).json();
     for (const el of form.elements) {
@@ -233,8 +306,10 @@
   loadConfig();
   refreshStatus();
   refreshLogs();
+  refreshTranscript();
   setInterval(refreshStatus, 1000);
   setInterval(refreshLogs, 1500);
+  setInterval(refreshTranscript, 1500);
 </script>
 </body>
 </html>

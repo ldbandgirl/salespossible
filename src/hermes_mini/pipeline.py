@@ -114,6 +114,7 @@ class VoicePipeline:
                 logger.info("Empty transcription, back to listening.")
                 return
             self.state.last_heard = heard
+            self.state.add_message("user", heard, "voice")
             logger.info("Heard: %s", heard)
 
             if self.cfg.streaming:
@@ -180,6 +181,7 @@ class VoicePipeline:
 
     def _finish_turn(self, reply: str) -> None:
         self.state.last_reply = reply
+        self.state.add_message("assistant", reply, "voice")
         self.state.turns += 1
         self.state.last_error = ""
 

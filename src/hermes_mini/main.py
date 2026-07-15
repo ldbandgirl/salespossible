@@ -35,15 +35,18 @@ class HermesMini(ReachyMiniApp):
         cfg = load_config(instance_path)
         state = AppState()
 
-        if self.settings_app is not None:
-            register_api_routes(self.settings_app, cfg, state, instance_path)
-
         pipeline = VoicePipeline(reachy_mini, cfg, state, stop_event)
+
+        if self.settings_app is not None:
+            register_api_routes(self.settings_app, cfg, state, instance_path, pipeline)
+
         pipeline.run()
 
 
-def register_api_routes(app, cfg: Config, state: AppState, instance_path: Path) -> None:
-    """Attach status/config endpoints to the app's FastAPI settings server."""
+def register_api_routes(
+    app, cfg: Config, state: AppState, instance_path: Path, pipeline
+) -> None:
+    """Attach status/config/chat endpoints to the app's FastAPI settings server."""
     from fastapi import Body
 
     @app.get("/api/status")
@@ -55,6 +58,27 @@ def register_api_routes(app, cfg: Config, state: AppState, instance_path: Path) 
         from hermes_mini.logbuffer import get_lines
 
         return {"lines": get_lines()}
+
+    @app.get("/api/transcript")
+    async def get_transcript() -> dict:
+        return {"messages": state.transcript()}
+
+    # Sync def -> FastAPI runs it in a worker thread, so the blocking Hermes
+    # call doesn't stall the event loop or the voice loop.
+    @app.post("/api/chat")
+    def post_chat(payload: dict = Body(...)) -> dict:
+        text = (payload.get("text") or "").strip()
+        if not text:
+            return {"error": "empty message"}
+        state.add_message("user", text, "text")
+        try:
+            reply = pipeline.hermes.send(text)
+        except Exception as e:  # surface the failure in the chat box
+            msg = f"{type(e).__name__}: {e}"
+            state.add_message("assistant", f"[error] {msg}", "text")
+            return {"error": msg}
+        state.add_message("assistant", reply, "text")
+        return {"reply": reply}
 
     @app.get("/api/config")
     async def get_config() -> dict:

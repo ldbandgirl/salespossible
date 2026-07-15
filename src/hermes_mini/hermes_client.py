@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from collections import deque
 
 import httpx
@@ -42,6 +43,9 @@ class HermesClient:
         self._responses_unsupported = False
         # maxlen counts messages; one turn = user + assistant.
         self._history: deque[dict] = deque(maxlen=max(2, cfg.history_max_turns * 2))
+        # The voice loop and the web chat box both drive this client from
+        # different threads; serialize turns so history/state don't race.
+        self._lock = threading.RLock()
         self._client = httpx.Client(
             timeout=httpx.Timeout(cfg.hermes_timeout_s, connect=10.0),
             transport=transport,
@@ -82,21 +86,22 @@ class HermesClient:
 
     def send(self, user_text: str) -> str:
         """Send one user utterance, return Hermes' reply text."""
-        mode = (self.cfg.hermes_mode or "auto").lower()
-        use_responses = mode == "responses" or (
-            mode == "auto" and not self._responses_unsupported
-        )
-        if use_responses:
-            try:
-                return self._send_responses(user_text)
-            except HermesUnsupportedEndpoint:
-                if mode == "responses":
-                    raise HermesError(
-                        "Hermes rejected /v1/responses. Set HERMES_MODE=chat or upgrade Hermes."
-                    )
-                logger.info("/v1/responses not available; falling back to chat mode.")
-                self._responses_unsupported = True
-        return self._send_chat(user_text)
+        with self._lock:
+            mode = (self.cfg.hermes_mode or "auto").lower()
+            use_responses = mode == "responses" or (
+                mode == "auto" and not self._responses_unsupported
+            )
+            if use_responses:
+                try:
+                    return self._send_responses(user_text)
+                except HermesUnsupportedEndpoint:
+                    if mode == "responses":
+                        raise HermesError(
+                            "Hermes rejected /v1/responses. Set HERMES_MODE=chat or upgrade Hermes."
+                        )
+                    logger.info("/v1/responses not available; falling back to chat mode.")
+                    self._responses_unsupported = True
+            return self._send_chat(user_text)
 
     def stream(self, user_text: str):
         """Yield reply text chunks as Hermes generates them.
@@ -104,22 +109,23 @@ class HermesClient:
         Same mode logic as send(). Falls back from responses to chat mode on
         404/405. The caller can fall back to send() if this yields nothing.
         """
-        mode = (self.cfg.hermes_mode or "auto").lower()
-        use_responses = mode == "responses" or (
-            mode == "auto" and not self._responses_unsupported
-        )
-        if use_responses:
-            try:
-                yield from self._stream_responses(user_text)
-                return
-            except HermesUnsupportedEndpoint:
-                if mode == "responses":
-                    raise HermesError(
-                        "Hermes rejected /v1/responses. Set HERMES_MODE=chat or upgrade Hermes."
-                    )
-                logger.info("/v1/responses not available; falling back to chat mode.")
-                self._responses_unsupported = True
-        yield from self._stream_chat(user_text)
+        with self._lock:
+            mode = (self.cfg.hermes_mode or "auto").lower()
+            use_responses = mode == "responses" or (
+                mode == "auto" and not self._responses_unsupported
+            )
+            if use_responses:
+                try:
+                    yield from self._stream_responses(user_text)
+                    return
+                except HermesUnsupportedEndpoint:
+                    if mode == "responses":
+                        raise HermesError(
+                            "Hermes rejected /v1/responses. Set HERMES_MODE=chat or upgrade Hermes."
+                        )
+                    logger.info("/v1/responses not available; falling back to chat mode.")
+                    self._responses_unsupported = True
+            yield from self._stream_chat(user_text)
 
     # ------------------------------------------------------------ internals
 
