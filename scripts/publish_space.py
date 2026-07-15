@@ -14,6 +14,7 @@ settings.json are excluded.
 from __future__ import annotations
 
 import os
+import re
 import sys
 from getpass import getpass
 from pathlib import Path
@@ -37,10 +38,26 @@ IGNORE = [
 ]
 
 
+def _normalize_readme_emoji(repo_root: Path) -> None:
+    """Hugging Face requires a pictographic emoji in the Space metadata.
+
+    Older copies of this repo shipped the caduceus symbol (U+2624), which the
+    validator rejects — rewrite whatever is there to a safe emoji.
+    """
+    readme = repo_root / "README.md"
+    text = readme.read_text(encoding="utf-8")
+    fixed = re.sub(r"(?m)^emoji:.*$", "emoji: \U0001F916", text, count=1)
+    if fixed != text:
+        readme.write_text(fixed, encoding="utf-8")
+        print("Normalized Space emoji in README.md metadata -> \U0001F916")
+
+
 def main() -> None:
     repo_root = Path(__file__).resolve().parent.parent
     if not (repo_root / "pyproject.toml").exists():
         sys.exit(f"Could not find pyproject.toml in {repo_root} — run from the repo.")
+
+    _normalize_readme_emoji(repo_root)
 
     token = os.environ.get("HF_TOKEN") or getpass(
         "Hugging Face WRITE token (from hf.co/settings/tokens, input hidden): "
