@@ -100,9 +100,20 @@
     <form id="chatform" class="row" style="margin-top:.6rem">
       <input id="chatinput" placeholder="Type a message to Hermes…" autocomplete="off"
              style="flex:1; min-width:0" />
+      <button type="button" id="chatcam" title="Send with a camera snapshot">📷</button>
       <button class="primary" type="submit" id="chatsend">Send</button>
     </form>
-    <p class="note">Voice turns (🎤) and typed turns (⌨️) share one conversation.</p>
+    <p class="note">Voice turns (🎤) and typed turns (⌨️) share one conversation.
+      📷 sends a live camera frame so Hermes can see it.</p>
+    <details style="margin-top:.4rem">
+      <summary class="note" style="cursor:pointer">Show camera preview</summary>
+      <div class="row" style="margin-top:.5rem">
+        <button type="button" id="camrefresh">Refresh view</button>
+        <span id="camnote" class="note"></span>
+      </div>
+      <img id="campreview" alt="camera preview" style="display:none; max-width:100%;
+        margin-top:.5rem; border-radius:8px; border:1px solid var(--line)" />
+    </details>
   </div>
 
   <div class="card">
@@ -162,6 +173,23 @@
         <div><label>ElevenLabs voice ID</label><input name="elevenlabs_voice_id" /></div>
         <div><label>OpenAI voice (only if provider = openai)</label><input name="tts_voice" placeholder="alloy" /></div>
       </div>
+    </fieldset>
+
+    <fieldset>
+      <legend>Vision (camera)</legend>
+      <div class="grid2">
+        <div><label>When to send the camera to Hermes</label>
+          <select name="vision_mode">
+            <option value="auto">auto — when you ask to look/see</option>
+            <option value="off">off — never</option>
+            <option value="always">always — every turn (costly)</option>
+          </select>
+        </div>
+        <div><label>Trigger words (comma-separated, for auto)</label>
+          <input name="vision_trigger_words" /></div>
+      </div>
+      <p class="note">Requires the model behind Hermes to accept images. Each frame
+        uses extra tokens, so <code>auto</code> is recommended over <code>always</code>.</p>
     </fieldset>
 
     <fieldset>
@@ -254,23 +282,35 @@
   }
 
   const chatform = $("chatform");
-  chatform.addEventListener("submit", async (ev) => {
-    ev.preventDefault();
+  async function sendChat(withImage) {
     const input = $("chatinput");
     const text = input.value.trim();
     if (!text) return;
     input.value = "";
     $("chatsend").disabled = true;
+    $("chatcam").disabled = true;
     try {
       await fetch("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({ text, image: !!withImage }),
       });
     } catch (e) { /* shown via transcript refresh */ }
     $("chatsend").disabled = false;
+    $("chatcam").disabled = false;
     input.focus();
     refreshTranscript();
+  }
+  chatform.addEventListener("submit", (ev) => { ev.preventDefault(); sendChat(false); });
+  $("chatcam").addEventListener("click", () => sendChat(true));
+
+  $("camrefresh").addEventListener("click", () => {
+    const img = $("campreview");
+    $("camnote").textContent = "loading…";
+    const url = "/api/snapshot?t=" + Date.now();
+    img.onload = () => { img.style.display = "block"; $("camnote").textContent = ""; };
+    img.onerror = () => { img.style.display = "none"; $("camnote").textContent = "camera unavailable"; };
+    img.src = url;
   });
 
   async function loadConfig() {

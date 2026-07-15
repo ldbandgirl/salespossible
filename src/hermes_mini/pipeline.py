@@ -20,6 +20,7 @@ from hermes_mini.text_utils import (
     split_into_sentences,
     strip_markdown,
 )
+from hermes_mini.vision import capture_image_url, wants_vision
 
 logger = logging.getLogger("hermes_mini.pipeline")
 
@@ -117,14 +118,21 @@ class VoicePipeline:
             self.state.add_message("user", heard, "voice")
             logger.info("Heard: %s", heard)
 
+            image_url = None
+            if wants_vision(self.cfg, heard):
+                image_url = capture_image_url(self.mini.media)
+                logger.info(
+                    "Vision: %s", "camera frame attached" if image_url else "camera unavailable"
+                )
+
             if self.cfg.streaming:
-                reply = self._stream_reply_and_speak(heard)
+                reply = self._stream_reply_and_speak(heard, image_url)
                 if reply:  # streaming produced a spoken reply
                     self._finish_turn(reply)
                     return
                 logger.info("Streaming yielded nothing; using non-streaming reply.")
 
-            reply = self.hermes.send(heard)
+            reply = self.hermes.send(heard, image_url)
             self.state.hermes_mode_in_use = self.hermes.mode_in_use
             logger.info("Hermes: %s", reply[:200])
             speakable = clamp_for_speech(strip_markdown(reply))
@@ -140,7 +148,7 @@ class VoicePipeline:
         finally:
             self.animations.stop_thinking()
 
-    def _stream_reply_and_speak(self, heard: str) -> str:
+    def _stream_reply_and_speak(self, heard: str, image_url: str | None = None) -> str:
         """Stream Hermes' reply, speaking each sentence as it completes.
 
         Returns the full reply text (empty string if nothing was produced, so
@@ -149,7 +157,7 @@ class VoicePipeline:
         buffer = ""
         parts: list[str] = []
         first = True
-        for chunk in self.hermes.stream(heard):
+        for chunk in self.hermes.stream(heard, image_url):
             if self.stop_event.is_set():
                 break
             buffer += chunk

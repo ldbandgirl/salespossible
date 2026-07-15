@@ -52,6 +52,7 @@ ENV_MAP = {
     "minimax_tts_model": "MINIMAX_TTS_MODEL",
     "minimax_voice_id": "MINIMAX_VOICE_ID",
     "greeting": "HERMES_MINI_GREETING",
+    "vision_mode": "VISION_MODE",
 }
 
 # Fields hidden (masked) when serving config to the web UI.
@@ -107,6 +108,16 @@ class Config:
     vad_end_silence_s: float = 0.7  # silence that closes an utterance
     vad_pre_roll_s: float = 0.5  # audio kept from before speech started
     vad_max_utterance_s: float = 30.0
+
+    # Vision — attach a camera frame to the message so Hermes can "see".
+    # off = never; auto = when the user says a trigger word; always = every turn.
+    # (Requires the model behind Hermes to accept image input.)
+    vision_mode: str = "auto"  # off | auto | always
+    vision_trigger_words: str = (
+        "see,look,vision,camera,eyes,watch,show you,in front of you,"
+        "what is this,what am i,what do you,what's this,describe,what color,"
+        "read this,holding,pointing,wearing"
+    )
 
     # Behavior
     greeting: str = "Hermes online."

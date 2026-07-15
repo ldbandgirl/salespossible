@@ -139,6 +139,7 @@ sensitivity, voices, and provider switches. Changes apply immediately.
 | `STT_PROVIDER` | `groq` | `groq` (whisper-large-v3-turbo, **free tier**), `minimax` (experimental), or `openai` |
 | `TTS_PROVIDER` | `minimax` | `minimax` (t2a_v2, Token Plan key), `elevenlabs`, or `openai` |
 | `MINIMAX_API_KEY` | — | MiniMax key — powers both the robot's voice (TTS) and your Hermes brain (`MINIMAX_GROUP_ID`, `MINIMAX_VOICE_ID` optional) |
+| `VISION_MODE` | `auto` | Send a camera frame to Hermes: `off`, `auto` (on "look/see" phrases), or `always`. Needs a vision-capable model behind Hermes |
 | `TTS_VOICE` | `alloy` | OpenAI voice name (only if `TTS_PROVIDER=openai`) |
 
 > **On MiniMax and hearing:** MiniMax's Token Plan key covers text-to-speech,

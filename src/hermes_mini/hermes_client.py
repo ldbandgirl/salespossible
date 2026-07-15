@@ -84,8 +84,8 @@ class HermesClient:
         data = resp.json()
         return [m.get("id", "?") for m in data.get("data", [])]
 
-    def send(self, user_text: str) -> str:
-        """Send one user utterance, return Hermes' reply text."""
+    def send(self, user_text: str, image_url: str | None = None) -> str:
+        """Send one user utterance (optionally with a camera image), return the reply."""
         with self._lock:
             mode = (self.cfg.hermes_mode or "auto").lower()
             use_responses = mode == "responses" or (
@@ -93,7 +93,7 @@ class HermesClient:
             )
             if use_responses:
                 try:
-                    return self._send_responses(user_text)
+                    return self._send_responses(user_text, image_url)
                 except HermesUnsupportedEndpoint:
                     if mode == "responses":
                         raise HermesError(
@@ -101,9 +101,9 @@ class HermesClient:
                         )
                     logger.info("/v1/responses not available; falling back to chat mode.")
                     self._responses_unsupported = True
-            return self._send_chat(user_text)
+            return self._send_chat(user_text, image_url)
 
-    def stream(self, user_text: str):
+    def stream(self, user_text: str, image_url: str | None = None):
         """Yield reply text chunks as Hermes generates them.
 
         Same mode logic as send(). Falls back from responses to chat mode on
@@ -116,7 +116,7 @@ class HermesClient:
             )
             if use_responses:
                 try:
-                    yield from self._stream_responses(user_text)
+                    yield from self._stream_responses(user_text, image_url)
                     return
                 except HermesUnsupportedEndpoint:
                     if mode == "responses":
@@ -125,14 +125,14 @@ class HermesClient:
                         )
                     logger.info("/v1/responses not available; falling back to chat mode.")
                     self._responses_unsupported = True
-            yield from self._stream_chat(user_text)
+            yield from self._stream_chat(user_text, image_url)
 
     # ------------------------------------------------------------ internals
 
-    def _stream_responses(self, user_text: str):
+    def _stream_responses(self, user_text: str, image_url: str | None = None):
         payload: dict = {
             "model": self.cfg.hermes_model,
-            "input": user_text,
+            "input": _responses_input(user_text, image_url),
             "store": True,
             "stream": True,
         }
@@ -144,8 +144,8 @@ class HermesClient:
             "/v1/responses", payload, _delta_from_responses, allow_unsupported=True
         )
 
-    def _stream_chat(self, user_text: str):
-        messages = self._chat_messages(user_text)
+    def _stream_chat(self, user_text: str, image_url: str | None = None):
+        messages = self._chat_messages(user_text, image_url)
         payload = {"model": self.cfg.hermes_model, "messages": messages, "stream": True}
         collected: list[str] = []
         for delta in self._stream_request(
@@ -187,18 +187,18 @@ class HermesClient:
         except httpx.HTTPError as e:
             raise HermesError(f"Cannot reach Hermes at {url}: {e}") from e
 
-    def _chat_messages(self, user_text: str) -> list[dict]:
+    def _chat_messages(self, user_text: str, image_url: str | None = None) -> list[dict]:
         messages: list[dict] = []
         if self.cfg.system_prompt:
             messages.append({"role": "system", "content": self.cfg.system_prompt})
         messages.extend(self._history)
-        messages.append({"role": "user", "content": user_text})
+        messages.append({"role": "user", "content": _chat_user_content(user_text, image_url)})
         return messages
 
-    def _send_responses(self, user_text: str) -> str:
+    def _send_responses(self, user_text: str, image_url: str | None = None) -> str:
         payload: dict = {
             "model": self.cfg.hermes_model,
-            "input": user_text,
+            "input": _responses_input(user_text, image_url),
             "store": True,
         }
         if self.cfg.hermes_conversation:
@@ -212,10 +212,10 @@ class HermesClient:
             raise HermesError("Hermes returned an empty response.")
         return text
 
-    def _send_chat(self, user_text: str) -> str:
+    def _send_chat(self, user_text: str, image_url: str | None = None) -> str:
         payload = {
             "model": self.cfg.hermes_model,
-            "messages": self._chat_messages(user_text),
+            "messages": self._chat_messages(user_text, image_url),
             "stream": False,
         }
         resp = self._request("POST", "/v1/chat/completions", json=payload)
@@ -251,6 +251,31 @@ class HermesClient:
 
 class HermesUnsupportedEndpoint(HermesError):
     """The Hermes build doesn't serve this endpoint (404/405)."""
+
+
+def _chat_user_content(user_text: str, image_url: str | None):
+    """Build a chat-completions user `content` (str, or multimodal parts)."""
+    if not image_url:
+        return user_text
+    return [
+        {"type": "text", "text": user_text},
+        {"type": "image_url", "image_url": {"url": image_url}},
+    ]
+
+
+def _responses_input(user_text: str, image_url: str | None):
+    """Build a Responses-API `input` (str, or a user message with an image)."""
+    if not image_url:
+        return user_text
+    return [
+        {
+            "role": "user",
+            "content": [
+                {"type": "input_text", "text": user_text},
+                {"type": "input_image", "image_url": image_url},
+            ],
+        }
+    ]
 
 
 def _delta_from_chat(obj: dict) -> str:

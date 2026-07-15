@@ -67,18 +67,37 @@ def register_api_routes(
     # call doesn't stall the event loop or the voice loop.
     @app.post("/api/chat")
     def post_chat(payload: dict = Body(...)) -> dict:
+        from hermes_mini.vision import capture_image_url
+
         text = (payload.get("text") or "").strip()
         if not text:
             return {"error": "empty message"}
-        state.add_message("user", text, "text")
+        image_url = None
+        if payload.get("image"):
+            image_url = capture_image_url(pipeline.mini.media)
+            if image_url is None:
+                return {"error": "camera unavailable"}
+        label = text + (" 📷" if image_url else "")
+        state.add_message("user", label, "text")
         try:
-            reply = pipeline.hermes.send(text)
+            reply = pipeline.hermes.send(text, image_url)
         except Exception as e:  # surface the failure in the chat box
             msg = f"{type(e).__name__}: {e}"
             state.add_message("assistant", f"[error] {msg}", "text")
             return {"error": msg}
         state.add_message("assistant", reply, "text")
         return {"reply": reply}
+
+    @app.get("/api/snapshot")
+    def get_snapshot():
+        from fastapi import Response
+
+        from hermes_mini.vision import capture_jpeg
+
+        jpeg = capture_jpeg(pipeline.mini.media)
+        if not jpeg:
+            return Response(status_code=503)
+        return Response(content=jpeg, media_type="image/jpeg")
 
     @app.get("/api/config")
     async def get_config() -> dict:
